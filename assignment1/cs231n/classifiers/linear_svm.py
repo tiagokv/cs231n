@@ -77,11 +77,21 @@ def svm_loss_vectorized(W, X, y, reg):
   #############################################################################
   scores = np.dot(X, W) #(N, C)
 
+  #First, create a mask where only y's are 0
   mask = np.ones(scores.shape)
   mask[range(scores.shape[0]), y] = 0
 
-  margins -= scores - scores[range(scores.shape[0]), y] * mask + 1
-  loss = np.sum(margins[ margins > 0 ]) / X.shape[0]
+  #Get the correct scores by training example and multiply by the mask
+  correct_classes_scores = scores[range(scores.shape[0]), y, np.newaxis] * mask
+
+  #Calculate the margins
+  margins = scores - correct_classes_scores + 1
+
+  #Zero the margins for y
+  margins *= mask #do not sum y's
+  margins_gt_zero = margins > 0
+  #Sum all margins that are greater than 0
+  loss = np.sum(margins[ margins_gt_zero ]) / X.shape[0]
   loss += reg * np.sum(W * W)
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -97,7 +107,9 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-
+  margins_gt_zero = margins_gt_zero.astype(np.float32)
+  margins_gt_zero[range(y.shape[0]), y] -= np.sum(margins_gt_zero, axis=1)
+  dW += np.dot(X.T, margins_gt_zero)
   dW /= X.shape[0]
   dW += reg * 2 * W
   #############################################################################
