@@ -182,6 +182,9 @@ class FullyConnectedNet(object):
             self.params['W{}'.format(i+1)] = np.random.randn(dims_before, hidden_dims[i]) * weight_scale
             self.params['b{}'.format(i+1)] = np.zeros(hidden_dims[i])
             dims_before = hidden_dims[i]
+            if self.use_batchnorm: 
+                self.params['gamma{}'.format(i+1)] = np.ones(hidden_dims[i])
+                self.params['beta{}'.format(i+1)] = np.zeros(hidden_dims[i])
         
         self.params['W{}'.format(self.num_layers)] = np.random.randn(dims_before, num_classes) * weight_scale            
         self.params['b{}'.format(self.num_layers)] = np.zeros(num_classes)
@@ -247,11 +250,16 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers - 1):
             out, cache_affine = affine_forward(inp, self.params['W{}'.format(i+1)],
                                                     self.params['b{}'.format(i+1)])
+            cache_bn = None
+            if self.use_batchnorm:
+                out, cache_bn = batchnorm_forward(out, self.params['gamma{}'.format(i+1)],
+                                                       self.params['beta{}'.format(i+1)],
+                                                       self.bn_params[i])
             inp, cache_relu   = relu_forward(out)
             cache_dropout = None
             if self.use_dropout == True:
                 inp, cache_dropout = dropout_forward(inp, self.dropout_param)
-            caches[str(i+1)] = (cache_affine, cache_relu, cache_dropout)
+            caches[str(i+1)] = (cache_affine, cache_relu, cache_dropout, cache_bn)
 
         scores, cache_last = affine_forward(inp, self.params['W{}'.format(self.num_layers)], 
                                                  self.params['b{}'.format(self.num_layers)])
@@ -287,13 +295,18 @@ class FullyConnectedNet(object):
         grads['b{}'.format(self.num_layers)] = dblast
 
         for i in reversed(range(self.num_layers-1)):
-            cache_affine, cache_relu, cache_dropout = caches[str(i+1)]
+            cache_affine, cache_relu, cache_dropout, cache_bn = caches[str(i+1)]
             if self.use_dropout == True:
                 error_sign = dropout_backward(error_sign, cache_dropout)
             error_sign = relu_backward(error_sign, cache_relu)
+            if self.use_batchnorm:
+                error_sign, dgamma, dbeta = batchnorm_backward_alt(error_sign, cache_bn)
+                grads['gamma{}'.format(i+1)] = dgamma
+                grads['beta{}'.format(i+1)] = dbeta
             error_sign, dW, db = affine_backward(error_sign, cache_affine)
             grads['W{}'.format(i+1)] = dW + self.reg * self.params['W{}'.format(i+1)]
             grads['b{}'.format(i+1)] = db
+
         
 
         ############################################################################
