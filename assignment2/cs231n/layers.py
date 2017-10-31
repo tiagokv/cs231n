@@ -421,7 +421,28 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    assert (H + 2 * conv_param['pad'] - HH) % conv_param['stride'] == 0, 'Dimensions don\'t match'
+    assert (W + 2 * conv_param['pad'] - WW) % conv_param['stride'] == 0, 'Dimensions don\'t match'
+
+    H_prime = 1 + (H + 2 * conv_param['pad'] - HH) // conv_param['stride']
+    W_prime = 1 + (W + 2 * conv_param['pad'] - WW) // conv_param['stride']
+    out = np.zeros((N, F, H_prime, W_prime))
+    if conv_param['pad'] > 0:
+        x = np.pad(x, ( (0,0),
+                        (0,0),
+                        (conv_param['pad'],conv_param['pad']),
+                        (conv_param['pad'],conv_param['pad'])), 
+                      'constant', constant_values=(0))
+    
+    for n in range(N):
+        for ht in range(0, H_prime):
+            for wd in range(0, W_prime):
+                for f in range(0, F):
+                    out[n, f, ht, wd] = np.sum(x[n, :, ht * conv_param['stride']:ht * conv_param['stride']+HH, 
+                                                       wd * conv_param['stride']:wd * conv_param['stride']+WW] * w[f, :, :, :]) + b[f]
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -446,7 +467,33 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    N, F, H_prime, W_prime = dout.shape
+
+    #- x: Input data of shape (N, C, H, W)
+    #- w: Filter weights of shape (F, C, HH, WW)
+    #- b: Biases, of shape (F,)
+    #- out: (N, F, H', W')
+
+    db = np.zeros_like(b)
+    dx = np.zeros_like(x)
+    dw = np.zeros_like(w)
+    for n in range(N):
+        for f in range(F):
+            db[f] += np.sum(dout[n, f])
+
+
+    for n in range(N):
+        for ht in range(0, H_prime):
+            for wd in range(0, W_prime):
+                for f in range(0, F):
+                        dw[f, :, :, : ] += dout[n, f, ht, wd] * x[n, :, ht * conv_param['stride']:ht * conv_param['stride']+HH, 
+                                                                        wd * conv_param['stride']:wd * conv_param['stride']+WW]
+    
+    #adapt dx to remove padding
+    dx = dx[:,:,conv_param['pad']:H-conv_param['pad'], conv_param['pad']:W-conv_param['pad']]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
