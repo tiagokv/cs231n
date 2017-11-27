@@ -569,8 +569,8 @@ def max_pool_backward_naive(dout, cache):
     W_prime = 1 + (W - WW) // pool_param['stride']
 
     for n in range(0, N):
-        for ht in range(0, HH):
-            for wd in range(0, WW):
+        for ht in range(0, H_prime):
+            for wd in range(0, W_prime):
                 for c in range(0, C):
                     window = x[n, c, ht * pool_param['stride']:ht * pool_param['stride']+HH, 
                                      wd * pool_param['stride']:wd * pool_param['stride']+WW]
@@ -616,7 +616,11 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    x_bn = x.transpose(0,2,3,1).reshape(N*H*W,C)
+    y_bn, cache = batchnorm_forward(x_bn, gamma, beta, bn_param)
+    out = y_bn.reshape(N, H, W, C).transpose(0, 3, 1, 2)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -646,7 +650,10 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N, C, H, W = dout.shape
+    dout_bn = dout.transpose(0,2,3,1).reshape(N*H*W,C)
+    dx, dgamma, dbeta = batchnorm_backward(dout_bn, cache)
+    dx = dx.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
