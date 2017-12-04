@@ -19,7 +19,7 @@ class ThreeLayerConvNet(object):
 
     def __init__(self, input_dim=(3, 32, 32), num_filters=32, filter_size=7,
                  hidden_dim=100, num_classes=10, weight_scale=1e-3, reg=0.0,
-                 dtype=np.float32):
+                 use_batch_norm=False, dtype=np.float32):
         """
         Initialize a new network.
 
@@ -61,6 +61,13 @@ class ThreeLayerConvNet(object):
         self.params['W3'] = np.random.randn(hidden_dim, num_classes) * weight_scale
         self.params['b3'] = np.zeros(num_classes)
 
+        self.use_batch_norm = use_batch_norm
+        self.bn_params = {}
+        if self.use_batch_norm == True:
+            self.params['gamma'] = np.ones(num_filters)
+            self.params['beta'] = np.zeros(num_filters)
+            self.bn_params = {'mode': 'train'}
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -92,7 +99,12 @@ class ThreeLayerConvNet(object):
         # computing the class scores for X and storing them in the scores          #
         # variable.                                                                #
         ############################################################################
+        mode = 'test' if y is None else 'train'
+        self.bn_params['mode'] = mode
+
         out, cache_crp  = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+        if self.use_batch_norm == True:
+            out, cache_bn = spatial_batchnorm_forward(out, self.params['gamma'], self.params['beta'], self.bn_params)
         max_pool_shape = out.shape
         out = out.reshape(out.shape[0], np.prod(out.shape[1:]), 1)
         out, cache_aff1  = affine_forward(out, W2, b2)
@@ -121,6 +133,8 @@ class ThreeLayerConvNet(object):
         error_sign = relu_backward(error_sign, cache_relu1)
         error_sign, dW2, db2 = affine_backward(error_sign, cache_aff1)
         error_sign = error_sign.reshape(max_pool_shape)
+        if self.use_batch_norm == True:
+            error_sign, dgamma, dbeta = spatial_batchnorm_backward(error_sign, cache_bn)
         _, dW1, db1 = conv_relu_pool_backward(error_sign, cache_crp)
 
         grads['W1'] = dW1 + self.reg * self.params['W1']
@@ -129,6 +143,8 @@ class ThreeLayerConvNet(object):
         grads['b2'] = db2
         grads['W3'] = dW3 + self.reg * self.params['W3']
         grads['b3'] = db3
+        grads['gamma'] = dgamma
+        grads['beta'] = dbeta
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
