@@ -137,7 +137,26 @@ class CaptioningRNN(object):
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
         ############################################################################
-        pass
+        #- features: Input image features, of shape (N, D)
+        #- captions: Ground-truth captions; an integer array of shape (N, T) where
+        #  each element is in the range 0 <= y[i, t] < V
+
+        h0, cache_h0 = affine_forward(features, W_proj, b_proj)
+        embeddings_in, cache_emb_in = word_embedding_forward(captions_in, W_embed)
+        if self.cell_type == 'rnn':
+            h, cache_rnn = rnn_forward(embeddings_in, h0, Wx, Wh, b)
+
+        pred, cache_pred = temporal_affine_forward(h, W_vocab, b_vocab)
+        loss, dx = temporal_softmax_loss(pred, captions_out, mask)
+
+        dx, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dx, cache_pred)
+
+        if self.cell_type == 'rnn':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dx, cache_rnn)
+
+        grads['W_embed'] = word_embedding_backward(dx, cache_emb_in)
+
+        _, grads['W_proj'], grads['b_proj'] = affine_backward(dh0, cache_h0)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -199,7 +218,16 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
-        pass
+        N, D = features.shape
+        V, W = W_embed.shape
+        prev_h, _ = affine_forward(features, W_proj, b_proj)
+        prev_emb = np.zeros((N, W))
+        prev_emb[:, :] =  W_embed[self._start]
+        for i in range(max_length):
+            prev_h, _ = rnn_step_forward(prev_emb, prev_h, Wx, Wh, b)
+            pred, _ = affine_forward(prev_h, W_vocab, b_vocab)
+            prev_emb = W_embed[pred.argmax(axis=1), :]
+            captions[:, i] = pred.argmax(axis=1)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
